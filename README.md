@@ -16,6 +16,10 @@ See the text files for variable indices needed in DataAnalysis.ipynb
 
 ## Training a Model
 
+See funnel.py for arguments
+
+Run the following:
+
 cd myoutputfiles
 
 python funnel.py
