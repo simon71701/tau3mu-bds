@@ -13,3 +13,9 @@ pandas == 1.2.4
 ## Data Analysis
 
 See the text files for variable indices needed in DataAnalysis.ipynb
+
+## Training a Model
+
+cd myoutputfiles
+
+python funnel.py
