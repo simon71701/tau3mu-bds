@@ -13,10 +13,21 @@ pandas == 1.2.4
 
 ## Training a Model
 
-See funnel.py for arguments
+See utils.py for arguments
 
 Run the following:
 
 cd Working
 
 python funnel1_4.py --args
+
+
+## Testing a Model
+
+See test_model1_4.py for arguments
+
+Run the following:
+
+cd Working
+
+python test_model1_4.py --args
