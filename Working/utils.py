@@ -32,12 +32,12 @@ def arg_parse():
 
 
     parser.set_defaults(batch_size=50,
-                        dropout=.1,
+                        dropout=0.0,
                         epochs=250,
                         lr=.0001,
                         pileup=0,
                         num_funnel_layers=5,
-                        maxhits=71,
+                        maxhits=72,
                         extra_filter=0,
                         mix=0,
                         early_stop=0)
