@@ -10,9 +10,6 @@ torch == 1.8.1
 
 pandas == 1.2.4
 
-## Data Analysis
-
-See the text files for variable indices needed in DataAnalysis.ipynb
 
 ## Training a Model
 
