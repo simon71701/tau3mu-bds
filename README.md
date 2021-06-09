@@ -10,6 +10,9 @@ torch == 1.8.1
 
 pandas == 1.2.4
 
+tqdm == 4.60.0
+
+sklearn == 0.0
 
 ## Training a Model
 
@@ -31,7 +34,6 @@ Run the following:
 cd Working
 
 python funnel1_4.py --args
-
 
 ## Testing a Model
 
