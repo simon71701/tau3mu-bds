@@ -20,6 +20,6 @@ See funnel.py for arguments
 
 Run the following:
 
-cd myoutputfiles
+cd Working
 
-python funnel.py
+python funnel1_4.py --args
