@@ -155,20 +155,23 @@ def trainModel(train_data, test_data, maxhits, device, args):
         opt = torch.optim.Adam(classifier.parameters(),lr=args.lr)
         
         total_params = sum(p.numel() for p in classifier.parameters() if p.requires_grad)
-        print(total_params)
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
         
         data_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, drop_last=True)
         test_data_loader = torch.utils.data.DataLoader(test_data, batch_size=len(test_data), shuffle=True, drop_last=True)
-
-        errors = []
+        
+        epoch_errors = []
+        
         test_errors = []
         
         for epoch in tqdm(range(1, args.epochs+1)):
+            errors = []
             for batch, labels in data_loader:
                 error, prediction = train_one_batch(classifier, opt, batch, labels)
-
-            errors.append(float(error))
+                errors.append(float(error))
+            
+            epoch_errors.append(np.mean(errors))
+            
             if args.early_stop:
                 test_error, auc_score = test(classifier, test_data_loader, epoch, path, args, early_stop=early_stopping.early_stop)
             else:
@@ -202,15 +205,15 @@ def trainModel(train_data, test_data, maxhits, device, args):
                 print("Epoch {0} Finished: Current Total Training Error={1} ".format(epoch+1, error))
                 
                 plt.clf()                                   
-                plt.plot(range(0,len(list(errors))), list(errors))
+                plt.plot(range(0,len(list(epoch_errors))), list(epoch_errors))
                 plt.xlabel("Epoch")
-                plt.title("Training Error: FL={0}".format(args.num_funnel_layers))
+                plt.title("Training Error: FL={0}, {1} Trainable Parameters".format(args.num_funnel_layers, total_params))
                 plt.ylabel("Total Training Error")
-                plt.text(.95, .95, "{0} Trainable Parameters".format(total_params), bbox=props)
                 plt.grid()
                 plt.savefig("{0}/FunnelErrorCurve_Epoch={1}.png".format(path, epoch))
                 plt.clf()
                 
+            
                 if epoch != 0:
                     test_epochs = [i for i in range(len(test_errors))]
                     plt.plot(test_epochs, list(test_errors))
