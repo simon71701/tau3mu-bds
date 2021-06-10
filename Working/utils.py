@@ -27,6 +27,8 @@ def arg_parse():
                         help="Filter for pt and eta. Options: 1 for true, 0 for false")
     parser.add_argument('--mix', type=float,
                         help='If >0, denotes the fraction with which the samples are mixed. See documentation of the function mixData for more details.')
+    parser.add_argument('--test_on', type=int,
+                        help="Denotes which dataset the model should be tested on. Options: 0, 200")
     parser.add_argument('--early_stop', type=int,
                         help="Denotes whether training will use early stopping. 1 for true, 0 for false")
 
@@ -40,6 +42,7 @@ def arg_parse():
                         maxhits=72,
                         extra_filter=0,
                         mix=0,
+                        test_on=200,
                         early_stop=0)
 
     return parser.parse_args()
@@ -237,9 +240,6 @@ def get_idx_for_interested_fpr(fpr, interested_fpr):
             res.append(i-1)
             break
     return res
-
-    
-    
     
     
     
