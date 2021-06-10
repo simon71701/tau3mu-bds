@@ -7,9 +7,11 @@ from sklearn import metrics
 from utils import *
 
 import torch
+import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 class Net(nn.Module):
     def __init__(self, maxhits, args):
@@ -76,6 +78,8 @@ def test(classifier, test_data_loader, epoch, path, args, early_stop=False):
     loss = FocalLoss(.5, 3)
     errors = []
     
+    total_params = sum(p.numel() for p in classifier.parameters() if p.requires_grad)
+    
     max_fpr = .001
     
     for batch, labels in test_data_loader:
@@ -100,7 +104,7 @@ def test(classifier, test_data_loader, epoch, path, args, early_stop=False):
         plt.plot(max_fpr, interested_tpr, 'ro', label = '.001 Fpr, %.2f Recall (area = %.4f)' % (interested_tpr, partial_roc_auc))
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title('ROC Curve'.format(epoch))
+        plt.title('ROC Curve: {0} Trainable Parameters'.format(total_params))
         plt.legend(loc="lower right")
         plt.grid()
         plt.savefig("{0}/Best_ROC_Curve.png".format(path))            
@@ -117,7 +121,7 @@ def test(classifier, test_data_loader, epoch, path, args, early_stop=False):
         plt.plot(max_fpr, interested_tpr, 'ro', label = '.001 Fpr, %.2f Recall (area = %.4f)' % (interested_tpr, partial_roc_auc))
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title('ROC Curve: Epoch #{0}'.format(epoch))
+        plt.title('Epoch #{0} ROC Curve: {1} Trainable Parameters'.format(epoch, total_params))
         plt.legend(loc="lower right")
         plt.grid()
         plt.savefig("{0}/ROC_Curve_Epoch{1}.png".format(path, epoch))            
@@ -126,23 +130,6 @@ def test(classifier, test_data_loader, epoch, path, args, early_stop=False):
     return error, roc_auc
 
 def trainModel(train_data, test_data, maxhits, device, args):
-    
-    path = "TrainingLogs/"
-    
-    if args.extra_filter:
-        path += "Extra_Filter/"
-    else:
-        path += "No_Extra_Filter/"
-    
-    if args.mix:
-        path += "{0}Mix/".format(int(args.mix*100))
-    else:
-        path += "No_Mix/pu{0}/".format(args.pileup)
-        
-    path += "{0}Layers_{1}Dropout".format(args.num_funnel_layers, args.dropout)
-    
-    if args.early_stop:
-        early_stopping = EarlyStopping(path="{0}/checkpoint.pt".format(path), patience=10)
     
     auc_score = .50
     running = True
@@ -154,15 +141,23 @@ def trainModel(train_data, test_data, maxhits, device, args):
         classifier.to(device)
         opt = torch.optim.Adam(classifier.parameters(),lr=args.lr)
         
-        total_params = sum(p.numel() for p in classifier.parameters() if p.requires_grad)
-        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        if args.extra_filter == 1:
+            comment = '_{0}Pileup_{1}FL_{2}Dropout_{3}Mix_ExtraFilter'.format(args.pileup, args.num_funnel_layers, args.dropout, args.mix)
+        else:
+            comment = '_{0}Pileup_{1}FL_{2}Dropout_{3}Mix_NoExtraFilter'.format(args.pileup, args.num_funnel_layers, args.dropout, args.mix)
+        
+        tb = SummaryWriter(comment=comment)
+        
+        if args.early_stop:
+            early_stopping = EarlyStopping(path="{0}/checkpoint.pt".format(tb.log_dir), patience=10)
+        
         
         data_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, drop_last=True)
         test_data_loader = torch.utils.data.DataLoader(test_data, batch_size=len(test_data), shuffle=True, drop_last=True)
         
-        epoch_errors = []
-        
-        test_errors = []
+        events, labels = next(iter(data_loader))
+        grid = torchvision.utils.make_grid(events)
+        tb.add_graph(classifier, events)
         
         for epoch in tqdm(range(1, args.epochs+1)):
             errors = []
@@ -170,12 +165,10 @@ def trainModel(train_data, test_data, maxhits, device, args):
                 error, prediction = train_one_batch(classifier, opt, batch, labels)
                 errors.append(float(error))
             
-            epoch_errors.append(np.mean(errors))
-            
             if args.early_stop:
-                test_error, auc_score = test(classifier, test_data_loader, epoch, path, args, early_stop=early_stopping.early_stop)
+                test_error, auc_score = test(classifier, test_data_loader, epoch, tb.log_dir, args, early_stop=early_stopping.early_stop)
             else:
-                test_error, auc_score = test(classifier, test_data_loader, epoch, path, args)
+                test_error, auc_score = test(classifier, test_data_loader, epoch, tb.log_dir, args)
             
             if epoch== 1 and auc_score == .50:
                 print("Retrying")
@@ -186,48 +179,39 @@ def trainModel(train_data, test_data, maxhits, device, args):
                 del test_data_loader
                 break
         
-            test_errors.append(float(test_error))
+            tb.add_scalar("Training Loss", np.mean(errors), epoch)
+            tb.add_scalar("Validation Loss", float(test_error), epoch)
+            tb.add_scalar("Validation AUROC", float(auc_score), epoch)
+            
+            tb.add_histogram('funnel_layers.1.0.weight', classifier.funnel_layers[1][0].weight, epoch)
+            tb.add_histogram('funnel_layers.1.0.bias', classifier.funnel_layers[1][0].bias, epoch)
+            tb.add_histogram(
+                'funnel_layers.1.0.weight.grad'
+                ,classifier.funnel_layers[1][0].weight.grad
+                ,epoch
+            )
             
             if args.early_stop:
                 early_stopping(test_error, classifier)
             
                 if early_stopping.early_stop:
                     print("Early stopping")
-                    test_error = test(classifier, test_data_loader, epoch-10, path, args, early_stop=early_stopping.early_stop)
-                    classifier.load_state_dict(torch.load('{0}/checkpoint.pt'.format(path)))
-                    torch.save(classifier.state_dict(), "{0}/BestClassifierSettings".format(path))
+                    test_error = test(classifier, test_data_loader, epoch-10, tb.log_dir, args, early_stop=early_stopping.early_stop)
+                    classifier.load_state_dict(torch.load('{0}/checkpoint.pt'.format(tb.log_dir)))
+                    torch.save(classifier.state_dict(), "{0}/BestClassifierSettings".format(tb.log_dir))
                     
                     stopping_point = epoch-10
                     
                     break
-            
-            if epoch%10 == 0:
-                print("Epoch {0} Finished: Current Total Training Error={1} ".format(epoch+1, error))
-                
-                plt.clf()                                   
-                plt.plot(range(0,len(list(epoch_errors))), list(epoch_errors))
-                plt.xlabel("Epoch")
-                plt.title("Training Error: FL={0}, {1} Trainable Parameters".format(args.num_funnel_layers, total_params))
-                plt.ylabel("Total Training Error")
-                plt.grid()
-                plt.savefig("{0}/FunnelErrorCurve_Epoch={1}.png".format(path, epoch))
-                plt.clf()
-                
-            
-                if epoch != 0:
-                    test_epochs = [i for i in range(len(test_errors))]
-                    plt.plot(test_epochs, list(test_errors))
-                    plt.xlabel("Epoch")
-                    plt.title("Testing Error: FL={0}".format(args.num_funnel_layers))
-                    plt.ylabel("Total Test Error")
-                    plt.grid()
-                    plt.savefig("{0}/FunnelErrorCurve_Test_Epoch={1}.png".format(path, epoch))
-                    plt.clf()
-                
-                torch.save(classifier.state_dict(), "{0}/Epoch{1}_ClassifierSettings".format(path, epoch))
+                    
+            if epoch%10 == 0 and epoch != args.epochs:
+                torch.save(classifier.state_dict(), "{0}/Epoch{1}_ClassifierSettings".format(tb.log_dir, epoch))
             
             if epoch == args.epochs:
                 running == False
-        
-            
+                torch.save(classifier.state_dict(), "{0}/FinalClassifierSettings".format(tb.log_dir, epoch))
+                
+                tb.close()
+    
+    return tb.log_dir
     
