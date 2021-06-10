@@ -1,8 +1,6 @@
-import argparse
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 from sklearn import metrics
 
 import torch
@@ -13,49 +11,8 @@ from torch.utils.data import DataLoader
 from utils import *
 from train import *
 
-def arg_parse():
-    parser = argparse.ArgumentParser(description='GNN arguments.')
 
-    parser.add_argument('--batch_size', type=int,
-                        help='Training batch size')
-    parser.add_argument('--dropout', type=float,
-                        help='Dropout rate')
-    parser.add_argument('--epochs', type=int,
-                        help='Number of training epochs')
-    parser.add_argument('--lr', type=float,
-                       help='Learning Rate')
-    parser.add_argument('--pileup', type=int,
-                       help='Pileup amount. Options: 0, 200')
-    parser.add_argument('--num_funnel_layers', type=int,
-                       help='Number of Funneling Layers')
-    parser.add_argument('--maxhits', type=int,
-                        help="Maximum number of hits allowed")
-    parser.add_argument('--extra_filter', type=int,
-                        help="Filter for pt and eta. Options: 1 for true, 0 for false")
-    parser.add_argument('--mix', type=float,
-                        help='If >0, denotes the fraction with which the samples are mixed. See documentation of the function mixData for more details.')
-    parser.add_argument('--test_on', type=int,
-                        help="Denotes which dataset the model should be tested on. Options: 0, 200")
-    parser.add_argument('--early_stop', type=int,
-                        help="Denotes whether training will use early stopping. 1 for true, 0 for false")
-
-
-    parser.set_defaults(batch_size=50,
-                        dropout=0.0,
-                        epochs=250,
-                        lr=.0001,
-                        pileup=0,
-                        num_funnel_layers=5,
-                        maxhits=72,
-                        extra_filter=0,
-                        mix=0,
-                        test_on=200,
-                        early_stop=0)
-
-    return parser.parse_args()
-
-
-def testModel(classifier, test_data_loader, path, args):
+def testroc(classifier, test_data_loader, path, args):
     classifier.eval()
     
     max_fpr = .001
@@ -121,10 +78,7 @@ def plotAccuracy(classifier, pu0data, pu200data, bgdata, path, args):
     plt.savefig("{0}/AccuracyPlot.png".format(path))
     
     
-def main():
-    
-    args = arg_parse()
-    print(args.test_on)
+def testModel(args, path):
     
     interested_vars = ['mu_hit_sim_phi', 'mu_hit_sim_eta', 'mu_hit_sim_r']
     
@@ -132,20 +86,6 @@ def main():
         dev = "cuda:0" 
     else:  
         dev = "cpu" 
-    
-    path = "TrainingLogs/"
-    
-    if args.extra_filter:
-        path += "Extra_Filter/"
-    else:
-        path += "No_Extra_Filter/"
-    
-    if args.mix:
-        path += "{0}Mix/".format(int(args.mix*100))
-    else:
-        path += "No_Mix/pu{0}/".format(args.pileup)
-        
-    path += "{0}Layers_{1}Dropout".format(args.num_funnel_layers, args.dropout)
     
     device = torch.device(dev)    
     
@@ -193,12 +133,11 @@ def main():
     if args.early_stop == True:
         classifier.load_state_dict(torch.load("{0}/BestClassifierSettings".format(path)))
     else:     
-        classifier.load_state_dict(torch.load("{0}/Epoch200_ClassifierSettings".format(path)))
+        classifier.load_state_dict(torch.load("{0}/FinalClassifierSettings".format(path)))
         
     classifier.eval()
         
     test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=len(test_data), shuffle=True, drop_last=True)
-    
     
     pu0data = np.array(filterandpad(pu0data, maxhits, taugunvars, interested_vars, args.extra_filter))
     pu200data = np.array(filterandpad(pu200data, maxhits, taugunvars, interested_vars, args.extra_filter))
@@ -207,11 +146,8 @@ def main():
     pu200data = torch.tensor(pu200data)
     bgdata = torch.tensor(bgdata)
     
-    testModel(classifier, test_data_loader, path, args)
+    testroc(classifier, test_data_loader, path, args)
     plotAccuracy(classifier, pu0data, pu200data, bgdata, path, args)
-
-if __name__ == '__main__':
-    main()
         
         
         
