@@ -6,6 +6,7 @@ from tqdm import tqdm
 from sklearn import metrics
 from utils import *
 from train import *
+from test_model1_4 import *
 
 import torch
 import torch.nn as nn
@@ -110,7 +111,8 @@ def main():
     del train_data
     del test_data
 
-    trainModel(train_dataset, test_dataset, maxhits, device, args)
+    path = trainModel(train_dataset, test_dataset, maxhits, device, args)
+    testModel(args, path)
     
 if __name__ == '__main__':
     main()
