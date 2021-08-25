@@ -377,7 +377,7 @@ def main():
     valid_plot_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=1, shuffle=True, drop_last=True)
     
     # Initialize the desired model
-    model = hyperTunnel(maxhits, 5, 256, dropout=.444)
+    model = Model(maxhits, 5, 256, dropout=.444)
     # Initialize the desired learning rate
     lr = .000686
     
