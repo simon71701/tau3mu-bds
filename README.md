@@ -14,6 +14,9 @@ tqdm == 4.60.0
 
 sklearn == 0.0
 
+## Singularity Image
+
+
 ## Training a Model
 
 Default arguments:
@@ -29,9 +32,10 @@ extra_filter=0
 mix=0
 test_on=200
 early_stop=0
+
 Run the following:
 
 cd Working
 
-python funnel1_4.py --args
+
 
