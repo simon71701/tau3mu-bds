@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 # Define the neural network using Torch.
 class Classifier(nn.Module):
     def __init__(self, maxhits, num_hidden, nodes_per_hidden, dropout=0.0):
-        super(hyperTunnel, self).__init__()
+        super(Classifier, self).__init__()
         
         # Set the size of the network's input
         self.input_size = 8*maxhits
