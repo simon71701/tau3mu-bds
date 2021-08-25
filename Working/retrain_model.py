@@ -231,13 +231,6 @@ def trainModel(model, lr):
     # Create the optimizer
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     args = None
-    
-    # Record the hyperparameters
-    hparams = {
-            HP_HIDDEN : 5,
-            HP_LR : lr,
-            HP_DROPOUT : 0.444
-        }
      
     # Set the path for function outputs, ie plots and settings
     mode = 0o666
