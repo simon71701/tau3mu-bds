@@ -235,9 +235,9 @@ def trainModel(model, lr):
     # Set the path for function outputs, ie plots and settings
     mode = 0o666
     current_dir = os.getcwd()
-    retrain_dir = os.join(current_dir, "retrain_runs")
+    retrain_dir = os.path.join(current_dir, "retrain_runs")
     new_dir = "{0}H_{1}LR_{2}B_{3}DR_{4}".format(model.num_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'))
-    path = os.join(retrain_dir, new_dir)
+    path = os.path.join(retrain_dir, new_dir)
     os.mkdir(path, mode)
     
     epochs = 150
