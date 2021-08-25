@@ -6,15 +6,12 @@ import matplotlib.pyplot as plt
 from sklearn import metrics
 from utils import *
 from datetime import datetime
-import inspect
+import os
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tensorboard.plugins.hparams import api as hp
-from tensorflow.summary import create_file_writer, scalar
 
 # Define the neural network using Torch.
 class Classifier(nn.Module):
@@ -243,7 +240,12 @@ def trainModel(model, lr):
         }
      
     # Set the path for function outputs, ie plots and settings
-    path = "retrain_runs/{0}H_{1}LR_{2}B_{3}DR_{4}".format(model.num_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'))
+    mode = 0o666
+    current_dir = os.getcwd()
+    retrain_dir = os.join(current_dir, "retrain_runs")
+    new_dir = "{0}H_{1}LR_{2}B_{3}DR_{4}".format(model.num_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'))
+    path = os.join(retrain_dir, new_dir)
+    os.mkdir(path, mode)
     
     epochs = 150
     
@@ -271,22 +273,8 @@ def trainModel(model, lr):
      
         train_auc_score = trainAUC(model, train_auc_loader, path, epoch)
         
-        # Record values in tensorflow
-        tb.add_scalar("Training Loss", np.mean(errors), epoch)
-        tb.add_scalar("Training AUROC", float(train_auc_score), epoch)
-        tb.add_scalar("Validation Loss", float(valid_error), epoch)
-        tb.add_scalar("Validation AUROC", float(valid_auc_score), epoch)        
-        tb.add_histogram('Input Layer Weights', model.input_layer[0].weight, epoch)
-        
         # Create accuracy plots
         plotAccuracy(model, valid_plot_loader, train_plot_loader, path, epoch)
-    
-    # Record hyperparameters
-    with create_file_writer(tb.log_dir).as_default():
-        hp.hparams(hparams)  # record the values used in this trial
-        scalar('accuracy', valid_auc_score, step=1)  
-    
-    tb.flush()
     
     return valid_auc_score
 
@@ -300,19 +288,8 @@ def main():
     
     torch.set_default_dtype(torch.float32)
     
-    # Initialize our hyperparameters
-    HP_HIDDEN = hp.HParam('# hidden layers', hp.Discrete([i for i in range(3,9)]))
-    HP_LR = hp.HParam('learning rate', hp.RealInterval(.0001, .0009))
-    HP_DROPOUT = hp.HParam('dropout', hp.RealInterval(0.0, 0.5))
-    METRIC_ACCURACY = 'accuracy'
-    
-    with create_file_writer('retrain_runs/hparam_tuning').as_default():
-      hp.hparams_config(
-        hparams=[HP_HIDDEN, HP_LR, HP_DROPOUT],
-        metrics=[hp.Metric(METRIC_ACCURACY, display_name='Val AUROC')]
-      )
-    
     global maxhits
+    
     # The main drawback of using FCNs is that we have to make a choice of data size since all the input vectors have to be the same size. We set the maximum hits per event
     # to limit the size of the input while still using at least 99% of the data.
     maxhits = 50
