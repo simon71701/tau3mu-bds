@@ -17,25 +17,34 @@ from torch.utils.tensorboard import SummaryWriter
 from tensorboard.plugins.hparams import api as hp
 from tensorflow.summary import create_file_writer, scalar
 
-class hyperTunnel(nn.Module):
+# Define the neural network using Torch.
+class Classifier(nn.Module):
     def __init__(self, maxhits, num_hidden, nodes_per_hidden, dropout=0.0):
         super(hyperTunnel, self).__init__()
         
+        # Set the size of the network's input
         self.input_size = 8*maxhits
+        # Set the desired number of hidden layers
         self.num_hidden=num_hidden
+        # Set the dropout for each layer. Dropout is the probability that a node will be killed off during training. Simplifies the model and prevents overtraining
         self.dropout = dropout
         
+        # Define the batch_norm layer. Normalizes the input batch
         self.batch_norm = nn.BatchNorm1d(self.input_size)
         
+        # Define the input layer.
         self.input_layer = nn.Sequential(
                                 nn.Linear(self.input_size, nodes_per_hidden),
                                 nn.LeakyReLU(),
                                 nn.Dropout(self.dropout)
                             )
         
+        # Initialize the hidden layers
         self.hidden_layers = nn.ModuleList()
+        # Set how many nodes should be in each hidden layer
         self.nodes_per_hidden = nodes_per_hidden
         
+        # Fill up the hidden layers
         for num in range(num_hidden):
             self.hidden_layers.append(
                 nn.Sequential(
@@ -44,12 +53,14 @@ class hyperTunnel(nn.Module):
                     nn.Dropout(self.dropout)
                     )
                 )
-
+        
+        # Define the output layer. The Sigmoid function forces the input to be between 0 and 1.
         self.output_layer = nn.Sequential(
                                 nn.Linear(nodes_per_hidden, 1),
                                 nn.Sigmoid()
                             )
-            
+        
+    # Define how the network treats the input 
     def forward(self, x):
         x = x.float()
         x = self.batch_norm(x)
@@ -63,6 +74,7 @@ class hyperTunnel(nn.Module):
         
         return x
 
+# Plots the distribution of predictions for events in both the training dataset and the validation dataset
 def plotAccuracy(classifier, valid_plot_loader, train_plot_loader, path, epoch):
     
     if epoch%50 == 0:
@@ -108,6 +120,7 @@ def plotAccuracy(classifier, valid_plot_loader, train_plot_loader, path, epoch):
         plt.legend(loc="upper center")
         plt.savefig("{0}/Epoch{1}_TrainAccuracyPlot.png".format(path, epoch))
 
+# Plots the model's AUC curve for the training dataset every 10th epoch 
 def trainAUC(classifier, auc_loader, path, epoch):
     classifier.eval()
     
@@ -144,7 +157,8 @@ def trainAUC(classifier, auc_loader, path, epoch):
         plt.close()
     
     return roc_auc
-                
+
+# Performs model validation, then plots the AUC curve for it.
 def validate(classifier, valid_data_loader, epoch, path, args, early_stop=False):
     
     classifier.eval()
@@ -155,6 +169,7 @@ def validate(classifier, valid_data_loader, epoch, path, args, early_stop=False)
     
     max_fpr = .001
     
+    # There's only one batch in valid_data_loader, this just ensures that the loader outputs the batch in the correct way.
     for batch, labels in valid_data_loader:
         with torch.no_grad():
             prediction = torch.flatten(classifier(batch))
@@ -191,47 +206,60 @@ def validate(classifier, valid_data_loader, epoch, path, args, early_stop=False)
         
     return error, roc_auc
 
-
+# Performs model training.
 def trainModel(model, lr):
     batch_size = 64
+    # Create the optimizer
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     args = None
     
+    # Record the hyperparameters
     hparams = {
             HP_HIDDEN : 5,
             HP_LR : lr,
             HP_DROPOUT : 0.444
         }
-        
+     
+    # Set the path for function outputs, ie plots and settings
     path = "retrain_runs/{0}H_{1}LR_{2}B_{3}DR_{4}".format(model.num_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'))
     
     epochs = 150
     
+    # Initialize data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     train_auc_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_data), shuffle=True, drop_last=True)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=len(valid_data), shuffle=True, drop_last=True)
     
+    # Create summary writer for tensorflow
     tb = SummaryWriter(log_dir=path)
     
     model.float()
+    
+    # Training loop
     for epoch in range(1, epochs+1):
         errors = []
         
+        # Train and get errors from each batch
         for batch, labels in train_loader:
             error, prediction = train_one_batch(model, opt, batch, labels)
             errors.append(float(error))
         
-    
-        valid_error, valid_auc_score = validate(model, valid_loader, epoch, path, args)
+        # Validate the model
+        valid_error, valid_auc_score = validate(model, valid_loader, epoch, path, args) 
+     
         train_auc_score = trainAUC(model, train_auc_loader, path, epoch)
+        
+        # Record values in tensorflow
         tb.add_scalar("Training Loss", np.mean(errors), epoch)
         tb.add_scalar("Training AUROC", float(train_auc_score), epoch)
         tb.add_scalar("Validation Loss", float(valid_error), epoch)
         tb.add_scalar("Validation AUROC", float(valid_auc_score), epoch)        
         tb.add_histogram('Input Layer Weights', model.input_layer[0].weight, epoch)
         
+        # Create accuracy plots
         plotAccuracy(model, valid_plot_loader, train_plot_loader, path, epoch)
-        
+    
+    # Record hyperparameters
     with create_file_writer(tb.log_dir).as_default():
         hp.hparams(hparams)  # record the values used in this trial
         scalar('accuracy', valid_auc_score, step=1)  
@@ -250,7 +278,7 @@ def main():
     
     torch.set_default_dtype(torch.float32)
     
-    
+    # Initialize our hyperparameters
     HP_HIDDEN = hp.HParam('# hidden layers', hp.Discrete([i for i in range(3,9)]))
     HP_LR = hp.HParam('learning rate', hp.RealInterval(.0001, .0009))
     HP_DROPOUT = hp.HParam('dropout', hp.RealInterval(0.0, 0.5))
@@ -263,7 +291,11 @@ def main():
       )
     
     global maxhits
+    # The main drawback of using FCNs is that we have to make a choice of data size since all the input vectors have to be the same size. We set the maximum hits per event
+    # to limit the size of the input while still using at least 99% of the data.
     maxhits = 50
+    
+    # Define what quantities we wish to use in training
     interested_vars = ['mu_hit_sim_phi', 'mu_hit_sim_eta', 'mu_hit_sim_r', 'mu_hit_sim_theta', 'mu_hit_sim_z', 'mu_hit_bend', 'mu_hit_ring', 'mu_hit_quality']
     
     if torch.cuda.is_available():  
@@ -274,6 +306,7 @@ def main():
     dev = "cpu"
     device = torch.device(dev)
     
+    # Open dataset files
     MinBias = open("MinBiasPU200_MTD.pkl", "rb")
     minbias_pu200file = pickle.load(MinBias)
     MinBias.close()
@@ -291,61 +324,68 @@ def main():
     global train_data
     global valid_data
     
-    signal_data, indices = filterandpad(pu200data, maxhits, taugunvars, interested_vars, 0, one_endcap=True)
-    bgdata = np.array(minbias_filterandpad(minbias_pu200,maxhits, minbiasvars, interested_vars, one_endcap=True))
+    # Filter the signal and background datasets and make each event the same size
+    signal_data, indices = filterandpad(pu200data, maxhits, taugunvars, interested_vars, 0)
+    bgdata = np.array(minbias_filterandpad(minbias_pu200,maxhits, minbiasvars, interested_vars))
     
-    print(signal_data.shape)
-    print(bgdata.shape)
-    
+    # Set the random seed and shuffle the data
     np.random.seed(17)
     shuffler = np.random.permutation(len(signal_data))
     signal_data[shuffler]
     
+    # Ensure the same random seed is used and shuffle the background dataset
     np.random.seed(17)
     bgshuffler = np.random.permutation(len(bgdata))
     bgdata[bgshuffler]
     
+    # Split the signal data into training and validation
     train_data, valid_data = np.split(signal_data, [int(.95*np.shape(signal_data)[0])])
     
+    # Same for background data
     bgtrain, bgvalid = np.split(bgdata, [int(4.92*np.shape(train_data)[0])])
    
     del signal_data
     del bgdata
     
+    # Create the labels for the signal events
     train_labels = torch.ones(np.shape(train_data)[0])
     valid_labels = torch.ones(np.shape(valid_data)[0])
     
+    # Add on the labels for the background events
     train_labels = torch.cat((train_labels, torch.zeros(np.shape(bgtrain)[0])))
     valid_labels = torch.cat((valid_labels, torch.zeros(np.shape(bgvalid)[0])))
-    print(np.shape(valid_data))
-    print(np.shape(bgtrain))
-    print(np.shape(bgvalid))
-    print(train_labels)
-    print(valid_labels)
-
+    
+    # Compile final datasets
     train_data = np.concatenate((train_data, bgtrain))
     valid_data = np.concatenate((valid_data, bgvalid))
     
+    # Convert to tensors for torch
     train_data = torch.tensor(train_data, dtype=torch.double)
     valid_data = torch.tensor(valid_data, dtype=torch.double)
     
     global train_dataset
     global valid_dataset
     
+    # Create Tensor Datasets for ease of use with data loaders
     train_dataset = torch.utils.data.TensorDataset(train_data, train_labels)
     valid_dataset = torch.utils.data.TensorDataset(valid_data, valid_labels)
 
     global train_plot_loader
     global valid_plot_loader
     
+    # Create data loaders for the plotting functions
     train_plot_loader = torch.utils.data.DataLoader(train_dataset, batch_size=1, shuffle=True, drop_last=True)
     valid_plot_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=1, shuffle=True, drop_last=True)
     
+    # Initialize the desired model
     model = hyperTunnel(maxhits, 5, 256, dropout=.444)
+    # Initialize the desired learning rate
     lr = .000686
     
+    # Train the model
     trainModel(model, lr)
 
+# This ensures that running the file in the terminal will actually run the code
 if __name__ == '__main__':
     main()
     
