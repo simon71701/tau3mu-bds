@@ -16,12 +16,14 @@ sklearn == 0.0
 
 ## Singularity Image
 Link to CERNBOX
+
 Place gnn_siqi.img into Working
 
 ## Training a Model
-
 cd Working
+
 singularity run gnn_siqi.img
+
 python retrain_model.py
 
 
