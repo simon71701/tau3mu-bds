@@ -7,7 +7,7 @@ import argparse
 import numpy as np
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description='GNN arguments.')
+    parser = argparse.ArgumentParser(description='FCN Arguments.')
 
     parser.add_argument('--batch_size', type=int,
                         help='Training batch size')
@@ -47,6 +47,7 @@ def arg_parse():
 
     return parser.parse_args()
 
+# Defines the loss function used by the model
 class FocalLoss(torch.nn.Module):
     def __init__(self, alpha: float, gamma: float, reduction: str = "mean"):
         super(FocalLoss, self).__init__()
@@ -66,57 +67,9 @@ class FocalLoss(torch.nn.Module):
             loss = loss.sum()
         return loss
 
-# From pytorchtools
-class EarlyStopping:
-    """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, patience=7, verbose=False, delta=0, path='checkpoint.pt', trace_func=print):
-        """
-        Args:
-            patience (int): How long to wait after last time validation loss improved.
-                            Default: 7
-            verbose (bool): If True, prints a message for each validation loss improvement. 
-                            Default: False
-            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
-                            Default: 0
-            path (str): Path for the checkpoint to be saved to.
-                            Default: 'checkpoint.pt'
-            trace_func (function): trace print function.
-                            Default: print            
-        """
-        self.patience = patience
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        self.val_loss_min = np.Inf
-        self.delta = delta
-        self.path = path
-        self.trace_func = trace_func
-        
-    def __call__(self, val_loss, model):
-
-        score = (-1)*val_loss
-
-        if self.best_score is None:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model)
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model)
-            self.counter = 0
-
-    def save_checkpoint(self, val_loss, model):
-        '''Saves model when validation loss decrease.'''
-        if self.verbose:
-            self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
-        torch.save(model.state_dict(), self.path)
-        self.val_loss_min = val_loss
-
+# Function that takes in the name of a variable and outputs a dictionary linking that variable to its corresponding index in the dataset
+# Ex: dictionary = make_lookup(taugunvars)
+# print(dictionary['n_mu_hit']) would output 2
 def make_lookup(variables):
     lookup = dict({})
     for i in range(len(variables)):
@@ -134,29 +87,19 @@ def filterPU200(dataset):
     
     return singledOut
 
-## Return a filtered dataset that only has the specified characteristic
-def collectChar(index, dataset):
-    char = []
-    
-    for i in range(len(dataset)):
-        char.append(dataset[i][index])
-    
-    
-    return char
-
-# Filter for events that have up to a specified number of muons and pad events with zeros.  Ordered (Phi, Eta, R) 
+# Filter for events that have up to a specified number of muons and pad events with zeros. Characteristics are ordered in the same way as interested_vars
 def filterandpad(dataset, maxhits, variables, interested_vars, pt_eta_filter, one_endcap=False):
     filtered = []
     lookup = make_lookup(variables)
     
     var_indices = [lookup[var] for var in interested_vars]
-    criteria_indices = [lookup[var] for var in ['n_mu_hit', 'gen_mu_pt', 'gen_mu_eta']]
     station_index = lookup['mu_hit_station']
     neighbor_index = lookup['mu_hit_neighbor']
     
     event_indices = []
-    
-    count = 0
+       
+    # For each event in the dataset, construct a new event of the same structure that only has the specified characteristics in interested_vars.
+    # Then, for each of these "new events", we pad each characteristic with 0's so that each event is the exact same shape with length len(interested_vars)*maxhits
     for event in dataset:
         chars = []
         new_event = [[] for i in range(len(var_indices))]
@@ -167,7 +110,7 @@ def filterandpad(dataset, maxhits, variables, interested_vars, pt_eta_filter, on
                         new_event[j].append(event[var_indices[j]][i])
             
             elif one_endcap==True:
-                if (event[station_index][i] == 1) and (event[neighbor_index][i] == 0) and (event[lookup['mu_hit_sim_eta']][i] <= 0): # If muon hit was in the first station
+                if (event[station_index][i] == 1) and (event[neighbor_index][i] == 0) and (event[lookup['mu_hit_sim_eta']][i] >= 0): # If muon hit was in the first station and pos endcap
                     for j in range(len(var_indices)):
                         new_event[j].append(event[var_indices[j]][i])
 
@@ -184,54 +127,8 @@ def filterandpad(dataset, maxhits, variables, interested_vars, pt_eta_filter, on
             filtered.append(chars)
             event_indices.append(count)
         
-        count += 1
         
     filtered = np.array(filtered)
-    return filtered, event_indices
-
-def filterandpad_trk(dataset, maxhits, variables, interested_vars, pt_eta_filter):
-    filtered = []
-    lookup = make_lookup(variables)
-    
-    var_indices = [lookup[var] for var in interested_vars]
-    criteria_indices = [lookup[var] for var in ['n_mu_hit', 'gen_mu_pt', 'gen_mu_eta']]
-    n_tkmu_index = lookup['n_L1_TkMu']
-    n_tkmustub_index = lookup['n_L1_TkMuStub']
-    station_index = lookup['mu_hit_station']
-    
-    event_indices = []
-    
-    count = 0
-    for event in dataset:
-        
-        if event[n_tkmu_index] > 0 and event[n_tkmustub_index] > 0:
-            continue
-        
-        chars = []
-        new_event = [[] for i in range(len(var_indices))]
-        
-        for i in range(len(event[station_index])):
-            if event[station_index][i] == 1: # If muon hit was in the first station
-                for j in range(8):
-                    new_event[j].append(event[var_indices[j]][i])
-
-        if len(new_event[0]) == 0:
-            continue
-        
-        if len(new_event[0]) <= maxhits:
-            for i in range(len(new_event)):
-                char = np.pad(new_event[i], (0,maxhits-len(new_event[i])), 'constant', constant_values=float(0))
-                for muon in char:
-                    chars.append(float(muon))
-            
-            chars = np.array(chars)
-            filtered.append(chars)
-            event_indices.append(count)
-        
-        count += 1
-        
-    filtered = np.array(filtered)
-    print(np.shape(filtered))
     return filtered, event_indices
 
 # See filterandpad
