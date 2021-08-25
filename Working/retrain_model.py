@@ -5,7 +5,6 @@ import random
 import matplotlib.pyplot as plt
 from sklearn import metrics
 from utils import *
-from train import train_one_batch
 from datetime import datetime
 import inspect
 
@@ -119,6 +118,29 @@ def plotAccuracy(classifier, valid_plot_loader, train_plot_loader, path, epoch):
         plt.ylabel("Density")
         plt.legend(loc="upper center")
         plt.savefig("{0}/Epoch{1}_TrainAccuracyPlot.png".format(path, epoch))
+
+def train_one_batch(classifier, optimizer, train_data, labels):
+    torch.set_default_dtype(torch.float32)
+    torch.enable_grad()
+    # Initialize our loss function
+    loss = FocalLoss(.5, 3)
+    # Reset the optimizer
+    optimizer.zero_grad()
+    
+    # Make a prediction from a batch
+    prediction = torch.flatten(classifier(train_data)).float()
+    labels.float()
+    
+    # Get error from the model's prediction
+    error = loss(prediction, labels)
+    
+    # Propagate the error
+    error.backward()
+    
+    # Update weights and biases using the optimizer
+    optimizer.step()
+    
+    return error, prediction
 
 # Plots the model's AUC curve for the training dataset every 10th epoch 
 def trainAUC(classifier, auc_loader, path, epoch):
