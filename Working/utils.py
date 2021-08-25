@@ -125,10 +125,9 @@ def filterandpad(dataset, maxhits, variables, interested_vars, pt_eta_filter, on
             
             chars = np.array(chars)
             filtered.append(chars)
-            event_indices.append(count)
         
     filtered = np.array(filtered)
-    return filtered, event_indices
+    return filtered
 
 # See filterandpad
 def minbias_filterandpad(minbias, maxhits, minbiasvars, interested_vars, one_endcap=False):
