@@ -1,1 +1,1 @@
-Place .pkl files here
+Place .pkl files and img file here
