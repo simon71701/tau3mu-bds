@@ -247,9 +247,6 @@ def trainModel(model, lr):
     train_auc_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_data), shuffle=True, drop_last=True)
     valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=len(valid_data), shuffle=True, drop_last=True)
     
-    # Create summary writer for tensorflow
-    tb = SummaryWriter(log_dir=path)
-    
     model.float()
     
     # Training loop
