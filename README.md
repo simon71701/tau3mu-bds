@@ -2,17 +2,10 @@
 
 ## Requirements:
 
-numpy == 1.19.2
-
-matplotlib == 3.4.1
-
+numpy == 1.20.2
 torch == 1.8.1
-
-pandas == 1.2.4
-
-tqdm == 4.60.0
-
-sklearn == 0.0
+scikit-learn==0.24.1
+matplotlib==3.4.1
 
 ## Singularity Image
 Link to CERNBOX
