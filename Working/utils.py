@@ -145,92 +145,135 @@ def collectChar(index, dataset):
     return char
 
 # Filter for events that have up to a specified number of muons and pad events with zeros.  Ordered (Phi, Eta, R) 
-def filterandpad(dataset, maxhits, variables, interested_vars, pt_eta_filter):
+def filterandpad(dataset, maxhits, variables, interested_vars, pt_eta_filter, one_endcap=False):
     filtered = []
-    
     lookup = make_lookup(variables)
-    indices = []
     
-    indices = [lookup[var] for var in interested_vars]
+    var_indices = [lookup[var] for var in interested_vars]
     criteria_indices = [lookup[var] for var in ['n_mu_hit', 'gen_mu_pt', 'gen_mu_eta']]
+    station_index = lookup['mu_hit_station']
+    neighbor_index = lookup['mu_hit_neighbor']
     
+    event_indices = []
+    
+    count = 0
     for event in dataset:
         chars = []
-        if event[criteria_indices[0]] <= maxhits:
+        new_event = [[] for i in range(len(var_indices))]
+        for i in range(len(event[station_index])):
+            if one_endcap==False:
+                if event[station_index][i] == 1 and event[neighbor_index][i] == 0: # If muon hit was in the first station
+                    for j in range(len(var_indices)):
+                        new_event[j].append(event[var_indices[j]][i])
             
-            if pt_eta_filter:
-                if (min(event[criteria_indices[1]]) > .5) and ((min(abs(event[criteria_indices[2]])) > 1.2) and (max(abs(event[criteria_indices[2]])) < 2.8)):
-                    for i in indices:
-                        char = np.pad(event[i], (0,maxhits-len(event[i])), 'constant', constant_values=0)
-                        for muon in char:
-                            chars.append(muon)
-                  
-                    filtered.append(chars)          
-            else:
-                for i in indices:
-                    char = np.pad(event[i], (0,maxhits-len(event[i])), 'constant', constant_values=0)
-                    for muon in char:
-                        chars.append(muon)
-                            
-                filtered.append(chars)
+            elif one_endcap==True:
+                if (event[station_index][i] == 1) and (event[neighbor_index][i] == 0) and (event[lookup['mu_hit_sim_eta']][i] <= 0): # If muon hit was in the first station
+                    for j in range(len(var_indices)):
+                        new_event[j].append(event[var_indices[j]][i])
+
+        if len(new_event[0]) == 0:
+            continue
         
+        if len(new_event[0]) <= maxhits:
+            for i in range(len(new_event)):
+                char = np.pad(new_event[i], (0,maxhits-len(new_event[i])), 'constant', constant_values=float(0))
+                for muon in char:
+                    chars.append(float(muon))
+            
+            chars = np.array(chars)
+            filtered.append(chars)
+            event_indices.append(count)
         
+        count += 1
         
-    return filtered
+    filtered = np.array(filtered)
+    return filtered, event_indices
+
+def filterandpad_trk(dataset, maxhits, variables, interested_vars, pt_eta_filter):
+    filtered = []
+    lookup = make_lookup(variables)
+    
+    var_indices = [lookup[var] for var in interested_vars]
+    criteria_indices = [lookup[var] for var in ['n_mu_hit', 'gen_mu_pt', 'gen_mu_eta']]
+    n_tkmu_index = lookup['n_L1_TkMu']
+    n_tkmustub_index = lookup['n_L1_TkMuStub']
+    station_index = lookup['mu_hit_station']
+    
+    event_indices = []
+    
+    count = 0
+    for event in dataset:
+        
+        if event[n_tkmu_index] > 0 and event[n_tkmustub_index] > 0:
+            continue
+        
+        chars = []
+        new_event = [[] for i in range(len(var_indices))]
+        
+        for i in range(len(event[station_index])):
+            if event[station_index][i] == 1: # If muon hit was in the first station
+                for j in range(8):
+                    new_event[j].append(event[var_indices[j]][i])
+
+        if len(new_event[0]) == 0:
+            continue
+        
+        if len(new_event[0]) <= maxhits:
+            for i in range(len(new_event)):
+                char = np.pad(new_event[i], (0,maxhits-len(new_event[i])), 'constant', constant_values=float(0))
+                for muon in char:
+                    chars.append(float(muon))
+            
+            chars = np.array(chars)
+            filtered.append(chars)
+            event_indices.append(count)
+        
+        count += 1
+        
+    filtered = np.array(filtered)
+    print(np.shape(filtered))
+    return filtered, event_indices
 
 # See filterandpad
-def minbias_filterandpad(minbias, maxhits, minbiasvars, interested_vars):
+def minbias_filterandpad(minbias, maxhits, minbiasvars, interested_vars, one_endcap=False):
     filtered = []
     
     lookup = make_lookup(minbiasvars)
-    indices = []
     
-    indices = [lookup[var] for var in interested_vars]
+    var_indices = [lookup[var] for var in interested_vars]
     hits_index = lookup['n_mu_hit']
+    station_index = lookup['mu_hit_station']
+    neighbor_index = lookup['mu_hit_neighbor']
     
+    lens = []
     for event in minbias:
         chars = []
-        if event[hits_index] <= maxhits:
-            for i in indices:
-                char = np.pad(event[i], (0,maxhits-len(event[i])), 'constant', constant_values=0)
-                for muon in char:
-                    chars.append(muon)
-                
-            filtered.append(chars)
-    
-    return filtered 
+        new_event = [[] for i in range(len(var_indices))]
+        for i in range(len(event[station_index])):
+            if one_endcap==False:
+                if event[station_index][i] == 1 and event[neighbor_index][i] == 0: # If muon hit was in the first station
+                    for j in range(len(var_indices)):
+                        new_event[j].append(event[var_indices[j]][i])
+            
+            elif one_endcap==True:
+                if (event[station_index][i] == 1) and (event[neighbor_index][i] == 0) and (event[lookup['mu_hit_sim_eta']][i] <= 0): # If muon hit was in the first station
+                    for j in range(len(var_indices)):
+                        new_event[j].append(event[var_indices[j]][i])
 
-def mixData(datasets, fraction):
-    
-    """
-    Args:   datasets (tuple): Tuple of length 2 containing the datasets to be mixed
-            fraction (float): Fraction denoting how the samples are mixed.
-                              Example: If fraction is .8, the datasets will be mixed such that the mixed dataset consists of 80% of the first dataset
-                              and 20% of the second dataset.
-    
-    """
-    
-    mixed = []
-    
-    lengths = []
-    
-    for i in range(len(datasets)):
-        lengths.append(len(datasets[i]))
-    
-    for i in range(len(lengths)):
-        if lengths[i] == min(lengths):
-            minlength = lengths[i]
-    
-    final_length = int(minlength/fraction)
-    
-    for i in range(minlength):
-        mixed.append(datasets[0][i])
-    
-    for i in range(final_length-minlength):
-        mixed.append(datasets[1][i])
-    
+        if len(new_event[0]) == 0:
+            continue
         
-    return mixed
+        if len(new_event[0]) <= maxhits:
+            for i in range(len(new_event)):
+                char = np.pad(new_event[i], (0,maxhits-len(new_event[i])), 'constant', constant_values=float(0))
+                for muon in char:
+                    chars.append(float(muon))
+            
+            chars = np.array(chars)
+            filtered.append(chars)
+
+
+    return filtered 
 
 # By Siqi Miao
 def get_idx_for_interested_fpr(fpr, interested_fpr):
