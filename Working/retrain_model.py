@@ -4,7 +4,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from sklearn import metrics
-from utils import *
+from utils2 import *
 from datetime import datetime
 import os
 
@@ -231,16 +231,17 @@ def trainModel(model, lr):
     # Create the optimizer
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     args = None
+    
      
     # Set the path for function outputs, ie plots and settings
-    mode = 0o666
     current_dir = os.getcwd()
     retrain_dir = os.path.join(current_dir, "retrain_runs")
     new_dir = "{0}H_{1}LR_{2}B_{3}DR_{4}".format(model.num_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'))
     path = os.path.join(retrain_dir, new_dir)
-    os.mkdir(path, mode)
-    
+    os.mkdir(path)
+    path = str(path)
     epochs = 150
+    
     
     # Initialize data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
@@ -314,18 +315,18 @@ def main():
     global valid_data
     
     # Filter the signal and background datasets and make each event the same size
-    signal_data, indices = filterandpad(pu200data, maxhits, taugunvars, interested_vars, 0)
+    signal_data = filterandpad(pu200data, maxhits, taugunvars, interested_vars, 0)
+    print(len(signal_data))
+    print(np.shape(signal_data))
     bgdata = np.array(minbias_filterandpad(minbias_pu200,maxhits, minbiasvars, interested_vars))
     
     # Set the random seed and shuffle the data
     np.random.seed(17)
-    shuffler = np.random.permutation(len(signal_data))
-    signal_data[shuffler]
+    np.random.shuffle(signal_data)
     
     # Ensure the same random seed is used and shuffle the background dataset
     np.random.seed(17)
-    bgshuffler = np.random.permutation(len(bgdata))
-    bgdata[bgshuffler]
+    np.random.shuffle(bgdata)
     
     # Split the signal data into training and validation
     train_data, valid_data = np.split(signal_data, [int(.95*np.shape(signal_data)[0])])
@@ -367,7 +368,7 @@ def main():
     valid_plot_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=1, shuffle=True, drop_last=True)
     
     # Initialize the desired model
-    model = Model(maxhits, 5, 256, dropout=.444)
+    model = Classifier(maxhits, 5, 256, dropout=.444)
     # Initialize the desired learning rate
     lr = .000686
     
@@ -377,7 +378,6 @@ def main():
 # This ensures that running the file in the terminal will actually run the code
 if __name__ == '__main__':
     main()
-    
     
     
     
