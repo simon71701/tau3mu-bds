@@ -8,7 +8,8 @@ scikit-learn==0.24.1
 matplotlib==3.4.1
 
 ## Singularity Image
-Link to CERNBOX
+Link to CERNBOX:
+https://cernbox.cern.ch/index.php/s/xUKjWDfNXqeq3A4
 
 Place gnn_siqi.img into Working
 
