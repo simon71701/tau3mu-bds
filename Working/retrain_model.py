@@ -7,6 +7,7 @@ from sklearn import metrics
 from utils2 import *
 from datetime import datetime
 import os
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -60,7 +61,7 @@ class Classifier(nn.Module):
     def forward(self, x):
         x = x.float()
         x = self.batch_norm(x)
-        #x.cuda()
+        x.cuda()
         x = self.input_layer(x)
 
         for layer in self.hidden_layers:
@@ -165,7 +166,7 @@ def trainAUC(classifier, auc_loader, path, epoch):
                 lw=lw, label='ROC curve (area = %0.4f)' % roc_auc)
         plt.ylim([0.0, 1.05])
         plt.xlim((0, 100))
-        plt.axvline(x = 30, label="30 kHz", linestyle='dashed')
+        plt.axvline(x = 30, label="30 kHz \n(Acceptance = {0}".format(round(interested_tpr,4)), linestyle='dashed')
         #plt.plot(max_fpr*R_LHC, interested_tpr, 'ro', label = '.001 Fpr, %.2f Recall (area = %.4f)' % (interested_tpr, partial_roc_auc))
         plt.xlabel('Trigger Rate (kHz)')
         plt.ylabel('Trigger Acceptance')
@@ -215,7 +216,7 @@ def validate(classifier, valid_data_loader, epoch, path, args, early_stop=False)
         plt.xlabel('Trigger Rate (kHz)')
         plt.ylabel('Trigger Acceptance')
         plt.title('Epoch #{0} ROC Curve: {1} Trainable Parameters'.format(epoch, total_params))
-        plt.legend(loc="lower right")
+        plt.legend(loc="upper right")
         plt.grid()
         plt.savefig("{0}/Valid_Epoch{1}.png".format(path, epoch))    
         
@@ -245,13 +246,13 @@ def trainModel(model, lr):
     
     # Initialize data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
-    train_auc_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_data), shuffle=True, drop_last=True)
-    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=len(valid_data), shuffle=True, drop_last=True)
+    train_auc_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset), shuffle=True, drop_last=True)
+    valid_loader = torch.utils.data.DataLoader(valid_dataset, batch_size=len(valid_dataset), shuffle=True, drop_last=True)
     
     model.float()
     
     # Training loop
-    for epoch in range(1, epochs+1):
+    for epoch in tqdm(range(1, epochs+1)):
         errors = []
         
         # Train and get errors from each batch
@@ -270,7 +271,6 @@ def trainModel(model, lr):
     return valid_auc_score
 
 def main():
-
     global HP_HIDDEN
     global HP_LR
     global HP_BATCH
@@ -292,62 +292,26 @@ def main():
         dev = "cuda:0" 
     else:  
         dev = "cpu" 
-    
-    dev = "cpu"
+        
     device = torch.device(dev)
     
-    # Open dataset files
-    MinBias = open("MinBiasPU200_MTD.pkl", "rb")
-    minbias_pu200file = pickle.load(MinBias)
-    MinBias.close()
-    minbiasvars = minbias_pu200file.keys()
-    minbias_pu200 = np.array(minbias_pu200file)
-    del minbias_pu200file        
     
-    PU200_MTD = open("DsTau3muPU200_MTD.pkl", "rb")
-    tau_pu200file = pickle.load(PU200_MTD)
-    taugunvars = tau_pu200file.keys()
-    PU200_MTD.close()
-    pu200data = np.array(tau_pu200file)
-    del tau_pu200file
-    
-    global train_data
-    global valid_data
-    
-    # Filter the signal and background datasets and make each event the same size
-    signal_data = filterandpad(pu200data, maxhits, taugunvars, interested_vars, 0)
-    print(len(signal_data))
-    print(np.shape(signal_data))
-    bgdata = np.array(minbias_filterandpad(minbias_pu200,maxhits, minbiasvars, interested_vars))
-    
-    # Set the random seed and shuffle the data
-    np.random.seed(17)
-    np.random.shuffle(signal_data)
-    
-    # Ensure the same random seed is used and shuffle the background dataset
-    np.random.seed(17)
-    np.random.shuffle(bgdata)
-    
-    # Split the signal data into training and validation
-    train_data, valid_data = np.split(signal_data, [int(.95*np.shape(signal_data)[0])])
-    
-    # Same for background data
-    bgtrain, bgvalid = np.split(bgdata, [int(4.92*np.shape(train_data)[0])])
-   
-    del signal_data
-    del bgdata
+    signal_train = np.load('SignalPU200_Train.npy')
+    signal_valid = np.load('SignalPU200_Valid.npy')
+    bg_train = np.load('BgPU200_Train.npy')
+    bg_valid = np.load('BgPU200_Valid.npy')
     
     # Create the labels for the signal events
-    train_labels = torch.ones(np.shape(train_data)[0])
-    valid_labels = torch.ones(np.shape(valid_data)[0])
+    train_labels = torch.ones(np.shape(signal_train)[0])
+    valid_labels = torch.ones(np.shape(signal_valid)[0])
     
     # Add on the labels for the background events
-    train_labels = torch.cat((train_labels, torch.zeros(np.shape(bgtrain)[0])))
-    valid_labels = torch.cat((valid_labels, torch.zeros(np.shape(bgvalid)[0])))
+    train_labels = torch.cat((train_labels, torch.zeros(np.shape(bg_train)[0])))
+    valid_labels = torch.cat((valid_labels, torch.zeros(np.shape(bg_valid)[0])))
     
     # Compile final datasets
-    train_data = np.concatenate((train_data, bgtrain))
-    valid_data = np.concatenate((valid_data, bgvalid))
+    train_data = np.concatenate((signal_train, bg_train))
+    valid_data = np.concatenate((signal_valid, bg_valid))
     
     # Convert to tensors for torch
     train_data = torch.tensor(train_data, dtype=torch.double)
