@@ -1,6 +1,7 @@
 import numpy as np
 from utils import filterandpad
 import math
+from tqdm import tqdm
 
 def valid_filterandpad(dataframe, maxhits, variables, one_endcap=False):
     dataset = []
