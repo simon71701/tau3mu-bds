@@ -1,3 +1,44 @@
+import numpy as np
+from utils import filterandpad
+import math
+
+def valid_filterandpad(dataframe, maxhits, variables, one_endcap=False):
+    dataset = []
+    for i in tqdm(range(len(dataframe)), desc='Filtering Dataset'):
+        
+        event = dataframe.iloc[i]
+        #print(event['n_gen_tau'])
+        
+        #print('i kept going in the loop')
+        if int(event['n_mu_hit']) == 0:
+            continue
+        
+        new_event = []
+        
+        unfiltered_event = [event[key] for key in variables]
+        stations = event['mu_hit_station']
+        is_neighbor = event['mu_hit_neighbor']
+        
+        for char in unfiltered_event:
+            new_char = []
+            for idx, hit in enumerate(char):
+                if stations[idx] == 1 and is_neighbor[idx] == 0:
+                    new_char.append(hit)
+                
+            while len(new_char) < maxhits:
+                new_char.append(0)
+                
+            if len(new_char) > maxhits:
+                new_char = new_char[0:maxhits]
+            
+            new_event.append(new_char)
+        
+        new_event = np.array(new_event)
+        new_event = new_event.flatten()
+        dataset.append(new_event)
+        
+    return dataset
+
 def genNpArrays():
     PU200_file = open("DsTau3muPU200_MTD.pkl", "rb")
     SignalPU200 = pickle.load(PU200_file)
