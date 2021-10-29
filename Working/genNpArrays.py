@@ -38,4 +38,4 @@ def genNpArrays():
     
     print("Background Completed. Done")
     
-getNpArrays()
+genNpArrays()
