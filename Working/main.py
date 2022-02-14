@@ -13,6 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 # Define the neural network using Torch.
 class Classifier(nn.Module):
@@ -244,6 +245,7 @@ def trainModel(model, lr):
     path = str(path)
     epochs = 150
     
+    writer = SummaryWriter(log_dir=path)
     
     # Initialize data loaders
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
@@ -266,18 +268,21 @@ def trainModel(model, lr):
      
         train_auc_score = trainAUC(model, train_auc_loader, path, epoch)
         
+        writer.add_scalar('Loss/Train', np.mean(errors), epoch)
+        writer.add_scalar('Loss/Validation', valid_error, epoch)
+        
+        writer.add_scalar('AUROC/Train', train_auc_score, epoch)
+        writer.add_scalar('AUROC/Validation', valid_auc_score, epoch)
+        
+        writer.flush()
+   
         # Create accuracy plots
         plotAccuracy(model, valid_plot_loader, train_plot_loader, path, epoch)
     
     return valid_auc_score
 
 def main():
-    global HP_HIDDEN
-    global HP_LR
-    global HP_BATCH
-    global HP_DROPOUT
-    global METRIC_ACCURACY
-    
+  
     torch.set_default_dtype(torch.float32)
     
     global maxhits
