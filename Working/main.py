@@ -237,7 +237,8 @@ def trainModel(model, lr):
     # Set the path for function outputs, ie plots and settings
     current_dir = os.getcwd()
     retrain_dir = os.path.join(current_dir, "retrain_runs")
-    new_dir = "{0}H_{1}LR_{2}B_{3}DR_{4}".format(model.num_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'))
+    comment=''
+    new_dir = "{0}H_{1}_Nodes_{2}LR_{3}B_{4}DR_{5}_{6}".format(model.num_hidden, model.nodes_per_hidden, round(lr, 6), batch_size, round(model.dropout, 3), datetime.now().strftime('%b%d_%H-%M-%S'), comment)
     path = os.path.join(retrain_dir, new_dir)
     os.mkdir(path)
     path = str(path)
@@ -284,9 +285,6 @@ def main():
     # The main drawback of using FCNs is that we have to make a choice of data size since all the input vectors have to be the same size. We set the maximum hits per event
     # to limit the size of the input while still using at least 99% of the data.
     maxhits = 50
-    
-    # Define what quantities we wish to use in training
-    interested_vars = ['mu_hit_sim_phi', 'mu_hit_sim_eta', 'mu_hit_sim_r', 'mu_hit_sim_theta', 'mu_hit_sim_z', 'mu_hit_bend', 'mu_hit_ring', 'mu_hit_quality']
     
     if torch.cuda.is_available():  
         dev = "cuda:0" 
