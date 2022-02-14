@@ -27,5 +27,7 @@ Run the following commands:
 cd Working
 python main.py
 
-Be sure to load the correct datasets.
+Comments:
+- Be sure to load the correct datasets. 
+- A torch tensorboard file is generated for every training and stored in that training's directory in retrain_runs
 
